@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  mysql-db:
+    image: mysql:5.7
+    container_name: mysql-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 12345
+      MYSQL_DATABASE: three-tier-db
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - three-tier-network
+
+  backend:
+    build: ./app-tier
+    container_name: backend-container
+    restart: always
+    env_file:
+      - ./app-tier/.env
+    depends_on:
+      - mysql-db
+    networks:
+      - three-tier-network
+    ports:
+      - "4000:4000"
+
+  frontend:
+    build: ./web-tier
+    container_name: web-tier
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    networks:
+      - three-tier-network
+
+volumes:
+  mysql_data:
+
+networks:
+  three-tier-network:
+    external: true   # <---- This makes Docker Compose use your EXISTING network

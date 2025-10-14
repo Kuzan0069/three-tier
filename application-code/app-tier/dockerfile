@@ -1,0 +1,21 @@
+# Step 1: Use an official Node.js runtime as a parent image
+FROM node:14-alpine
+
+# Step 2: Set the working directory inside the container
+WORKDIR /usr/share/app
+
+# Step 3: Copy package.json and package-lock.json to the working directory
+COPY package*.json ./
+
+# Step 4: clear cache and Install dependencies
+RUN npm cache clean --force
+RUN npm install
+
+# Step 5: Copy the rest of the backend application code
+COPY . .
+
+# Step 6: Expose the port your backend server will run on
+EXPOSE 4000
+
+# Step 7: Set the command to start the backend server
+CMD ["npm", "start"]

@@ -1,0 +1,65 @@
+# ------------------------------
+# Node.js / Backend / Frontend
+# ------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Environment files
+.env
+.env.*
+
+# ------------------------------
+# Docker
+# ------------------------------
+# Ignore local Docker artifacts
+docker-compose.override.yml
+*.env
+*.pid
+*.log
+*.bak
+*.swp
+
+# Ignore database dump files
+*.sql
+*.dump
+
+# Ignore Docker volumes and container data
+mysql_data/
+data/
+volumes/
+
+# ------------------------------
+# System / OS Files
+# ------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ------------------------------
+# Visual Studio Code
+# ------------------------------
+.vscode/
+.history/
+*.code-workspace
+
+# ------------------------------
+# Build / Dist
+# ------------------------------
+build/
+dist/
+.cache/
+coverage/
+.tmp/
+
+# ------------------------------
+# Nginx / Web Tier
+# ------------------------------
+logs/
+certs/
+ssl/
+*.pem
+*.key
+*.crt
