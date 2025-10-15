@@ -1,26 +1,12 @@
 version: '3.8'
 
 services:
-  mysql-db:
-    image: mysql:5.7
-    container_name: mysql-db
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: 12345
-      MYSQL_DATABASE: three-tier-db
-    volumes:
-      - mysql_data:/var/lib/mysql
-    networks:
-      - three-tier-network
-
   backend:
     build: ./app-tier
     container_name: backend-container
     restart: always
     env_file:
-      - ./app-tier/.env
-    depends_on:
-      - mysql-db
+      - ./app-tier/.env   # Make sure this file points to your RDS credentials
     networks:
       - three-tier-network
     ports:
@@ -37,9 +23,6 @@ services:
     networks:
       - three-tier-network
 
-volumes:
-  mysql_data:
-
 networks:
   three-tier-network:
-    external: true   # <---- This makes Docker Compose use your EXISTING network
+    driver: bridge
