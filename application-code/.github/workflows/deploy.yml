@@ -16,7 +16,7 @@ jobs:
 
       # ✅ Step 2: SonarCloud Code Analysis
       - name: SonarCloud Scan
-        uses: sonarsource/sonarcloud-github-action@v2
+        uses: sonarsource/sonarcloud-github-action@f96b7c0123b39b87f9233a9fd94a1fd2a12345cd
         with:
           projectBaseDir: .
         env:
