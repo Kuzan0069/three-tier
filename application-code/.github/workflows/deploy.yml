@@ -33,32 +33,47 @@ jobs:
 
       # ✅ Step 4: Build & Push Backend Image
       - name: Build & Push Backend
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           echo "Building backend image..."
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/application-code-backend:latest ./app-tier
+          docker build -t $DOCKERHUB_USERNAME/application-code-backend:latest ./app-tier
+
           echo "Pushing backend image to Docker Hub..."
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/application-code-backend:latest
+          docker push $DOCKERHUB_USERNAME/application-code-backend:latest
+
           echo "Backend image built and pushed successfully!"
 
       # ✅ Step 5: Build & Push Frontend Image
       - name: Build & Push Frontend
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           echo "Building frontend image..."
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/application-code-frontend:latest ./web-tier
+          docker build -t $DOCKERHUB_USERNAME/application-code-frontend:latest ./web-tier
+
           echo "Pushing frontend image to Docker Hub..."
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/application-code-frontend:latest
+          docker push $DOCKERHUB_USERNAME/application-code-frontend:latest
+          
           echo "Frontend image built and pushed successfully!"
 
       # ✅ Step 6: SSH into EC2 and Deploy
       - name: SSH and Deploy
         uses: appleboy/ssh-action@14f4c7e6adadb70bdb2f173a52a4213d705df15b
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
           script: |
             echo "🔑 Connecting to EC2 instance..."
-            docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+            docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_TOKEN
             echo "Docker login on EC2 successful!"
 
             echo "Stopping old containers..."
@@ -67,17 +82,17 @@ jobs:
             echo "Old containers stopped and removed."
 
             echo "📦 Pulling latest images from Docker Hub..."
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/application-code-frontend:latest
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/application-code-backend:latest
+            docker pull $DOCKERHUB_USERNAME/application-code-frontend:latest
+            docker pull $DOCKERHUB_USERNAME/application-code-backend:latest
             docker pull mysql:5.7
             echo "Images pulled successfully!"
 
             echo "Starting database container..."
             docker run -d --name db \
-              -e MYSQL_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }} \
-              -e MYSQL_DATABASE=${{ secrets.DB_NAME }} \
-              -e MYSQL_USER=${{ secrets.DB_USER }} \
-              -e MYSQL_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              -e MYSQL_ROOT_PASSWORD=$DB_ROOT_PASSWORD \
+              -e MYSQL_DATABASE=$DB_NAME \
+              -e MYSQL_USER=$DB_USER \
+              -e MYSQL_PASSWORD=$DB_PASSWORD \
               -p 3306:3306 \
               mysql:5.7
             echo "Database container running."
@@ -85,17 +100,17 @@ jobs:
             echo "⚙️ Starting backend container..."
             docker run -d --name backend \
               --env DB_HOST=db \
-              --env DB_USER=${{ secrets.DB_USER }} \
-              --env DB_PWD=${{ secrets.DB_PASSWORD }} \
-              --env DB_DATABASE=${{ secrets.DB_NAME }} \
+              --env DB_USER=$DB_USER \
+              --env DB_PWD=$DB_PASSWORD \
+              --env DB_DATABASE=$DB_NAME \
               -p 4000:4000 \
               --link db:db \
-              ${{ secrets.DOCKERHUB_USERNAME }}/application-code-backend:latest
+              $DOCKERHUB_USERNAME/application-code-backend:latest
             echo "Backend container running."
 
             echo "Starting frontend container..."
             docker run -d --name frontend \
               -p 3000:80 \
               --link backend:backend-container \
-              ${{ secrets.DOCKERHUB_USERNAME }}/application-code-frontend:latest
+              $DOCKERHUB_USERNAME/application-code-frontend:latest
             echo "Frontend container running and application deployed successfully!"
