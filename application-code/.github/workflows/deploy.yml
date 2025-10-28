@@ -1,0 +1,101 @@
+name: CI/CD with SonarCloud Quality Gate and EC2 Deployment
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ✅ Step 1: Checkout your code
+      - name: Checkout code
+        uses: actions/checkout@v4
+        run: echo "Code checked out successfully"
+
+      # ✅ Step 2: SonarCloud Code Analysis
+      - name: SonarCloud Scan
+        uses: sonarsource/sonarcloud-github-action@v2
+        with:
+          projectBaseDir: .
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: "https://sonarcloud.io"
+
+      # ✅ Step 3: Login to Docker Hub
+      - name: Docker Login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - run: echo "Logged in to Docker Hub successfully"
+
+      # ✅ Step 4: Build & Push Backend Image
+      - name: Build & Push Backend
+        run: |
+          echo "Building backend image..."
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/application-code-backend:latest ./app-tier
+          echo "Pushing backend image to Docker Hub..."
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/application-code-backend:latest
+          echo "Backend image built and pushed successfully!"
+
+      # ✅ Step 5: Build & Push Frontend Image
+      - name: Build & Push Frontend
+        run: |
+          echo "Building frontend image..."
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/application-code-frontend:latest ./web-tier
+          echo "Pushing frontend image to Docker Hub..."
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/application-code-frontend:latest
+          echo "Frontend image built and pushed successfully!"
+
+      # ✅ Step 6: SSH into EC2 and Deploy
+      - name: SSH and Deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            echo "🔑 Connecting to EC2 instance..."
+            docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+            echo "Docker login on EC2 successful!"
+
+            echo "Stopping old containers..."
+            docker stop frontend backend db || true
+            docker rm frontend backend db || true
+            echo "Old containers stopped and removed."
+
+            echo "📦 Pulling latest images from Docker Hub..."
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/application-code-frontend:latest
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/application-code-backend:latest
+            docker pull mysql:5.7
+            echo "Images pulled successfully!"
+
+            echo "Starting database container..."
+            docker run -d --name db \
+              -e MYSQL_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }} \
+              -e MYSQL_DATABASE=${{ secrets.DB_NAME }} \
+              -e MYSQL_USER=${{ secrets.DB_USER }} \
+              -e MYSQL_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              -p 3306:3306 \
+              mysql:5.7
+            echo "Database container running."
+
+            echo "⚙️ Starting backend container..."
+            docker run -d --name backend \
+              --env DB_HOST=db \
+              --env DB_USER=${{ secrets.DB_USER }} \
+              --env DB_PWD=${{ secrets.DB_PASSWORD }} \
+              --env DB_DATABASE=${{ secrets.DB_NAME }} \
+              -p 4000:4000 \
+              --link db:db \
+              ${{ secrets.DOCKERHUB_USERNAME }}/application-code-backend:latest
+            echo "Backend container running."
+
+            echo "Starting frontend container..."
+            docker run -d --name frontend \
+              -p 3000:80 \
+              --link backend:backend-container \
+              ${{ secrets.DOCKERHUB_USERNAME }}/application-code-frontend:latest
+            echo "Frontend container running and application deployed successfully!"
