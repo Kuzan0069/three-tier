@@ -2,7 +2,7 @@ name: CI/CD with SonarCloud Quality Gate and EC2 Deployment
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
