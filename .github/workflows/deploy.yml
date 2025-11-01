@@ -19,7 +19,7 @@ jobs:
 
       # ✅ Step 2: SonarCloud Code Analysis
       - name: SonarCloud Scan
-        uses: sonarsource/sonarcloud-github-action@e44258b109568baa0df60ed515564622c671cbb4
+        uses: sonarsource/sonarcloud-github-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
         with:
           projectBaseDir: application-code
         env:
@@ -62,7 +62,7 @@ jobs:
 
       # ✅ Step 6: SSH into EC2 and Deploy
       - name: SSH and Deploy
-        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262
+        uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
