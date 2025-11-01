@@ -8,18 +8,20 @@ on:
 jobs:
   build-test-deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: application-code
 
     steps:
       # ✅ Step 1: Checkout your code
       - name: Checkout code
         uses: actions/checkout@v4
-        run: echo "Code checked out successfully"
 
       # ✅ Step 2: SonarCloud Code Analysis
       - name: SonarCloud Scan
         uses: sonarsource/sonarcloud-github-action@f96b7c0123b39b87f9233a9fd94a1fd2a12345cd
         with:
-          projectBaseDir: .
+          projectBaseDir: application-code
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: "https://sonarcloud.io"
@@ -38,10 +40,10 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           echo "Building backend image..."
-          docker build -t $DOCKERHUB_USERNAME/application-code-backend:latest ./app-tier
+          docker build -t $DOCKER_USERNAME/application-code-backend:latest ./app-tier
 
           echo "Pushing backend image to Docker Hub..."
-          docker push $DOCKERHUB_USERNAME/application-code-backend:latest
+          docker push $DOCKER_USERNAME/application-code-backend:latest
 
           echo "Backend image built and pushed successfully!"
 
@@ -51,10 +53,10 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           echo "Building frontend image..."
-          docker build -t $DOCKERHUB_USERNAME/application-code-frontend:latest ./web-tier
+          docker build -t $DOCKER_USERNAME/application-code-frontend:latest ./web-tier
 
           echo "Pushing frontend image to Docker Hub..."
-          docker push $DOCKERHUB_USERNAME/application-code-frontend:latest
+          docker push $DOCKER_USERNAME/application-code-frontend:latest
           
           echo "Frontend image built and pushed successfully!"
 
@@ -74,7 +76,7 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           script: |
             echo "🔑 Connecting to EC2 instance..."
-            docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_TOKEN
+            docker login -u $DOCKER_USERNAME -p $DOCKER_TOKEN
             echo "Docker login on EC2 successful!"
 
             echo "Stopping old containers..."
@@ -83,8 +85,8 @@ jobs:
             echo "Old containers stopped and removed."
 
             echo "📦 Pulling latest images from Docker Hub..."
-            docker pull $DOCKERHUB_USERNAME/application-code-frontend:latest
-            docker pull $DOCKERHUB_USERNAME/application-code-backend:latest
+            docker pull $DOCKER_USERNAME/application-code-frontend:latest
+            docker pull $DOCKER_USERNAME/application-code-backend:latest
             docker pull mysql:5.7
             echo "Images pulled successfully!"
 
@@ -106,12 +108,12 @@ jobs:
               --env DB_DATABASE=$DB_NAME \
               -p 4000:4000 \
               --link db:db \
-              $DOCKERHUB_USERNAME/application-code-backend:latest
+              $DOCKER_USERNAME/application-code-backend:latest
             echo "Backend container running."
 
             echo "Starting frontend container..."
             docker run -d --name frontend \
               -p 3000:80 \
               --link backend:backend-container \
-              $DOCKERHUB_USERNAME/application-code-frontend:latest
+              $DOCKER_USERNAME/application-code-frontend:latest
             echo "Frontend container running and application deployed successfully!"
