@@ -16,12 +16,19 @@ jobs:
       # ✅ Step 1: Checkout your code
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # ✅ Step 2: SonarCloud Code Analysis
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
         with:
           projectBaseDir: application-code
+          args: >
+            -Dsonar.projectKey=Kuzan0069_three-tier
+            -Dsonar.organization=kuzan0069
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.sources=.
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: "https://sonarcloud.io"
