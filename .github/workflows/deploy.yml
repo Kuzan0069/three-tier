@@ -19,7 +19,7 @@ jobs:
 
       # ✅ Step 2: SonarCloud Code Analysis
       - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-github-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
+        uses: sonarsource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
         with:
           projectBaseDir: application-code
         env:
