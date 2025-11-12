@@ -70,25 +70,20 @@ jobs:
       # ✅ Step 6: SSH into EC2 and Deploy
       - name: SSH and Deploy
         uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
+          # Pass environment variables through envs parameter
+          envs: DOCKER_USERNAME,DOCKER_TOKEN,DB_ROOT_PASSWORD,DB_NAME,DB_USER,DB_PASSWORD
           script: |
             echo "🔑 Connecting to EC2 instance..."
-            docker login -u $DOCKER_USERNAME -p $DOCKER_TOKEN
+            echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
             echo "Docker login on EC2 successful!"
 
             echo "Stopping old containers..."
-            docker stop frontend backend db || true
-            docker rm frontend backend db || true
+            docker stop frontend backend db 2>/dev/null || true
+            docker rm frontend backend db 2>/dev/null || true
             echo "Old containers stopped and removed."
 
             echo "📦 Pulling latest images from Docker Hub..."
@@ -99,20 +94,30 @@ jobs:
 
             echo "Starting database container..."
             docker run -d --name db \
-              -e MYSQL_ROOT_PASSWORD=$DB_ROOT_PASSWORD \
-              -e MYSQL_DATABASE=$DB_NAME \
-              -e MYSQL_USER=$DB_USER \
-              -e MYSQL_PASSWORD=$DB_PASSWORD \
+              -e MYSQL_ROOT_PASSWORD="$DB_ROOT_PASSWORD" \
+              -e MYSQL_DATABASE="$DB_NAME" \
+              -e MYSQL_USER="$DB_USER" \
+              -e MYSQL_PASSWORD="$DB_PASSWORD" \
               -p 3306:3306 \
               mysql:5.7
-            echo "Database container running."
+            echo "Database container started. Waiting for MySQL to be ready..."
+            
+            # Wait for MySQL to be ready (max 60 seconds)
+            for i in {1..60}; do
+              if docker exec db mysqladmin ping -h localhost --silent; then
+                echo "MySQL is ready!"
+                break
+              fi
+              echo "Waiting for MySQL... ($i/60)"
+              sleep 1
+            done
 
             echo "⚙️ Starting backend container..."
             docker run -d --name backend \
               --env DB_HOST=db \
-              --env DB_USER=$DB_USER \
-              --env DB_PWD=$DB_PASSWORD \
-              --env DB_DATABASE=$DB_NAME \
+              --env DB_USER="$DB_USER" \
+              --env DB_PWD="$DB_PASSWORD" \
+              --env DB_DATABASE="$DB_NAME" \
               -p 4000:4000 \
               --link db:db \
               $DOCKER_USERNAME/application-code-backend:latest
@@ -123,4 +128,14 @@ jobs:
               -p 3000:80 \
               --link backend:backend-container \
               $DOCKER_USERNAME/application-code-frontend:latest
-            echo "Frontend container running and application deployed successfully!"
+            echo "Frontend container running."
+            
+            echo "✅ Deployment completed! Checking container status..."
+            docker ps
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
