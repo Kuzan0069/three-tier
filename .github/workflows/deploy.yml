@@ -93,24 +93,43 @@ jobs:
             echo "Images pulled successfully!"
 
             echo "Starting database container..."
-            docker run -d --name db \
-              -e MYSQL_ROOT_PASSWORD="$DB_ROOT_PASSWORD" \
-              -e MYSQL_DATABASE="$DB_NAME" \
-              -e MYSQL_USER="$DB_USER" \
-              -e MYSQL_PASSWORD="$DB_PASSWORD" \
-              -p 3306:3306 \
-              mysql:5.7
+            # Check if DB_USER is 'root' and handle accordingly
+            if [ "$DB_USER" = "root" ]; then
+              echo "Using root user for database..."
+              docker run -d --name db \
+                -e MYSQL_ROOT_PASSWORD="$DB_ROOT_PASSWORD" \
+                -e MYSQL_DATABASE="$DB_NAME" \
+                -p 3306:3306 \
+                mysql:5.7
+            else
+              echo "Creating non-root database user..."
+              docker run -d --name db \
+                -e MYSQL_ROOT_PASSWORD="$DB_ROOT_PASSWORD" \
+                -e MYSQL_DATABASE="$DB_NAME" \
+                -e MYSQL_USER="$DB_USER" \
+                -e MYSQL_PASSWORD="$DB_PASSWORD" \
+                -p 3306:3306 \
+                mysql:5.7
+            fi
             echo "Database container started. Waiting for MySQL to be ready..."
             
-            # Wait for MySQL to be ready (max 60 seconds)
-            for i in {1..60}; do
-              if docker exec db mysqladmin ping -h localhost --silent; then
-                echo "MySQL is ready!"
-                break
+            # Wait for MySQL to be ready (max 90 seconds)
+            COUNTER=0
+            MAX_TRIES=90
+            until docker exec db mysqladmin ping -h localhost --silent 2>/dev/null; do
+              COUNTER=$((COUNTER+1))
+              if [ $COUNTER -gt $MAX_TRIES ]; then
+                echo "❌ MySQL failed to start within 90 seconds"
+                docker logs db
+                exit 1
               fi
-              echo "Waiting for MySQL... ($i/60)"
+              echo "⏳ Waiting for MySQL to be ready... ($COUNTER/$MAX_TRIES)"
               sleep 1
             done
+            echo "✅ MySQL is ready!"
+            
+            # Extra wait to ensure MySQL is fully initialized
+            sleep 5
 
             echo "⚙️ Starting backend container..."
             docker run -d --name backend \
