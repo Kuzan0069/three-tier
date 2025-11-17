@@ -3,13 +3,16 @@ name: CI/CD with SonarCloud Quality Gate and EC2 Deployment
 on:
   push:
     branches: [ main ]
+    # Allow manual workflow execution from GitHub Actions UI
   workflow_dispatch:
 
 jobs:
   build-test-deploy:
+  # Use Ubuntu runner hosted on github
     runs-on: ubuntu-latest
     defaults:
       run:
+      # directs it to the application-code folder as this is where the codebase resides
         working-directory: application-code
 
     steps:
@@ -17,19 +20,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+        # needed so SonarCloud can analyze code changes over time
           fetch-depth: 0
 
       # ✅ Step 2: SonarCloud Code Analysis
       - name: SonarQube Scan
+       # Use full commit SHA for security and immutability
         uses: sonarsource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
         with:
           projectBaseDir: application-code
+
+           # SonarCloud configuration parameters
           args: >
             -Dsonar.projectKey=Kuzan0069_three-tier
             -Dsonar.organization=kuzan0069
             -Dsonar.sourceEncoding=UTF-8
             -Dsonar.sources=.
         env:
+        # Authentication token for SonarCloud (stored as a GitHub secret)
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: "https://sonarcloud.io"
 
@@ -37,24 +45,28 @@ jobs:
       - name: Docker Login
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567
         with:
+        # Docker Hub username and access token stored as GitHub secret. Ensure the token has its permission set to 'Read, Write, Delete'
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - run: echo "Logged in to Docker Hub successfully"
 
       # ✅ Step 4: Build & Push Backend Image
+      # Creates a Docker image for the Node.js backend and uploads it to Docker Hub
       - name: Build & Push Backend
         env:
+        # Make Docker username available as environment variable
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           echo "Building backend image..."
           docker build -t $DOCKER_USERNAME/application-code-backend:latest ./app-tier
-
+          
           echo "Pushing backend image to Docker Hub..."
           docker push $DOCKER_USERNAME/application-code-backend:latest
 
           echo "Backend image built and pushed successfully!"
 
       # ✅ Step 5: Build & Push Frontend Image
+      # Creates a Docker image for the React frontend and uploads it to Docker Hub
       - name: Build & Push Frontend
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -71,22 +83,32 @@ jobs:
       - name: SSH and Deploy
         uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f
         with:
+        # EC2 instance public IP address. Get an elastic IP address to avoid changing it everytime the instance restarts
           host: ${{ secrets.EC2_HOST }}
+
+          # SSH username (typically 'ec2-user' for Amazon Linux, 'ubuntu' for Ubuntu...and so on)
           username: ${{ secrets.EC2_USER }}
+
+          # Private SSH key for authentication (PEM file content)
           key: ${{ secrets.EC2_KEY }}
-          # Pass environment variables through envs parameter
+
+          # Pass environment variables through envs parameter. Makes variables available in ssh session and accessible on EC2
           envs: DOCKER_USERNAME,DOCKER_TOKEN,DB_ROOT_PASSWORD,DB_NAME,DB_USER,DB_PASSWORD
           script: |
             echo "🔑 Connecting to EC2 instance..."
+            # Uses stdin for secure password input (prevents exposure in shell history)
             echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
             echo "Docker login on EC2 successful!"
 
             echo "Stopping old containers..."
+            # Stop running containers
             docker stop frontend backend db 2>/dev/null || true
+            # Remove stopped containers (not images) to free up resources
             docker rm frontend backend db 2>/dev/null || true
             echo "Old containers stopped and removed."
 
             echo "📦 Pulling latest images from Docker Hub..."
+            # Download the latest versions of all required images
             docker pull $DOCKER_USERNAME/application-code-frontend:latest
             docker pull $DOCKER_USERNAME/application-code-backend:latest
             docker pull mysql:5.7
@@ -128,7 +150,7 @@ jobs:
             done
             echo "✅ MySQL is ready!"
             
-            # Extra wait to ensure MySQL is fully initialized
+            # Extra wait to ensure MySQL is fully initialized. Prevents race conditions during database/table creation
             sleep 5
 
             echo "⚙️ Starting backend container..."
@@ -151,6 +173,9 @@ jobs:
             
             echo "✅ Deployment completed! Checking container status..."
             docker ps
+
+        # Environment variables block
+        # These are defined here and passed to the SSH session via the 'envs' parameter
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
